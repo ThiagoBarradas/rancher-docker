@@ -1,0 +1,97 @@
+version: '2'
+services:
+  rancher-server:
+    container_name: rancher-server
+    image: rancher/server:stable
+    ports:
+      - 8080:8080
+    networks:
+      rancher_lan:
+        ipv4_address: 172.18.0.3
+    restart: unless-stopped
+    environment:
+      - CATTLE_DB_CATTLE_MYSQL_NAME=cattle
+      - CATTLE_DB_CATTLE_USERNAME=cattle
+      - CATTLE_DB_CATTLE_PASSWORD=Password@123
+      - CATTLE_DB_CATTLE_MYSQL_PORT=3306
+      - CATTLE_DB_CATTLE_MYSQL_HOST=mysql
+    links:
+      - mysql
+    depends_on:
+      - mysql
+
+  mysql:
+    container_name: mysql
+    image: mysql:5.7.16
+    ports:
+      - 3306:3306
+    networks:
+      rancher_lan:
+        ipv4_address: 172.18.0.4
+    restart: unless-stopped
+    environment:
+      - MYSQL_DATABASE=cattle
+      - MYSQL_USER=cattle
+      - MYSQL_PASSWORD=Password@123
+      - MYSQL_ROOT_PASSWORD=RootPassword@123
+
+  nginx-proxy:
+    container_name: nginx
+    image: nginx
+    ports:
+      - 80:80
+    networks:
+      rancher_lan:
+        ipv4_address: 172.18.0.5
+    restart: unless-stopped
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d
+    links:
+      - rancher-server
+      - docker-host-01
+      - docker-host-02
+    depends_on:
+      - rancher-server
+      - docker-host-01
+      - docker-host-02
+      
+  docker-host-01:
+    container_name: docker-host-01
+    image: thiagobarradas/docker-host-rancher
+    hostname: docker-host-01
+    networks:
+      rancher_lan:
+        ipv4_address: 172.18.0.11
+    privileged: true
+    restart: unless-stopped
+    volumes:
+      - ./etc/resolv.conf:/etc/resolv.conf
+    extra_hosts:
+      - "rancher-server:172.18.0.5"
+    links:
+      - rancher-server
+      
+  docker-host-02:
+    container_name: docker-host-02
+    image: thiagobarradas/docker-host-rancher
+    hostname: docker-host-02
+    networks:
+      rancher_lan:
+        ipv4_address: 172.18.0.12
+    privileged: true
+    restart: unless-stopped
+    volumes:
+      - ./etc/resolv.conf:/etc/resolv.conf
+    extra_hosts:
+      - "rancher-server:172.18.0.5"
+    links:
+      - rancher-server
+      
+networks:
+  rancher_lan:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      -
+        subnet: 172.18.0.0/24
